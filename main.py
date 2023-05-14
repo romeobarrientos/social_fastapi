@@ -60,5 +60,7 @@ def get_post(id: int, response: Response):
 def delete_post(id: int):
     
         index = find_index_post(id)
+        if index == None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= f"Page not found, likely deleted. Please try again :)")
         my_posts.pop(index)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
