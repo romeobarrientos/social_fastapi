@@ -17,10 +17,12 @@ class Post(BaseModel):
 
 # Code for connecting to database using psycopg
 while True:
+
     try:
-        conn = psycopg2.connect(host='localhost', database='advento', user='postgres', password='', cursor_factory=RealDictCursor)
+        conn = psycopg2.connect(host='localhost', database='advento', user='postgres', password='661284Product', cursor_factory=RealDictCursor)
         cursor = conn.cursor()
         print("Database connection was successful!")
+        break
     except Exception as error:
         print("Connecting to Database failed")
         print("Error: ", error)
@@ -49,21 +51,23 @@ def root():
 # Get a post
 @app.get("/posts")
 def get_posts():
-    return {"data": my_posts}
+    cursor.execute("""SELECT * FROM posts """)
+    posts = cursor.fetchall()
+    return {"data": posts}
 
 # Create a post
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
 def create_posts(post: Post):
-    post_dict = post.dict()
-    post_dict['id'] = randrange(0, 100000)
-    my_posts.append(post_dict)
-    return {"data": post_dict}
+    cursor.execute("""INSERT INTO posts (title, content, published) VALUES (%s, %s, %s) RETURNING * """,(post.title, post.content, post.published))
+    newPost = cursor.fetchone()
+    conn.commit()
+    return {"data": newPost}
 
 # Getting an individual post
 @app.get("/posts/{id}")
 def get_post(id: int, response: Response):
-    
-    post = find_post(id)
+    cursor.execute("""SELECT * FROM posts WHERE id = %s """, (id,))
+    post = cursor.fetchone()
     if not post:
         raise HTTPException(status_code= 404, detail= f"ID {id} could not be found in the system!")
     return{"post detail": post}
@@ -71,20 +75,21 @@ def get_post(id: int, response: Response):
 # Delete post
 @app.delete("/posts/{id}", status_code= status.HTTP_204_NO_CONTENT)
 def delete_post(id: int):
-    
-        index = find_index_post(id)
-        if index == None:
+        cursor.execute("""DELETE FROM posts WHERE id = %s RETURNING *""", (id,))
+        deletedPost = cursor.fetchone()
+        conn.commit()
+
+       
+        if deletedPost == None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= f"Page not found, likely deleted. Please try again :)")
-        my_posts.pop(index)
+        
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @app.put("/posts/{id}")
 def update_post(id: int, post: Post):
-    index = find_index_post(id)
-    if index == None:
+    cursor.execute("""UPDATE posts SET title = %s, content = %s, published = %s WHERE id = %s RETURNING *""", (post.title, post.content, post.published, (id,)))
+    updatedPost = cursor.fetchone()
+    conn.commit()
+    if updatedPost == None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail= f"Page not found, likely deleted. Please try again :)")
-    
-    post_dict = post.dict()
-    post_dict['id'] = id
-    my_posts[index] = post_dict
-    return{"data": post_dict}
+    return{"data": updatedPost}
